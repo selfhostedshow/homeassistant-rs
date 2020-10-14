@@ -1,0 +1,12 @@
+[package]
+name = "ha_api"
+version = "0.1.0"
+authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "0.3"
+reqwest = { version = "0.10", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
