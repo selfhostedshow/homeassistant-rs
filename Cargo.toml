@@ -1,8 +1,13 @@
 [package]
 name = "ha_api"
+description = "This is a library for connecting to the Home Assistent API"
 version = "0.1.0"
 authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
 edition = "2018"
+readme = "readme.md"
+homepage = "api.halcyon.casa"
+repository = "https://github.com/selfhostedshow/ha_api"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
