@@ -5,7 +5,7 @@ version = "0.1.0"
 authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
 edition = "2018"
 readme = "readme.md"
-homepage = "api.halcyon.casa"
+protocolhomepage = "https://api.halcyon.casa"
 repository = "https://github.com/selfhostedshow/ha_api"
 license = "Apache-2.0"
 
