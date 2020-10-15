@@ -3,6 +3,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum Error {
     Request(reqwest::Error),
+    HaApi(String),
     Config(String),
     Refresh(),
     NoAuth(),
@@ -20,6 +21,7 @@ impl fmt::Display for Error {
         match self {
             Error::Request(inner) => write!(f, "{}", inner),
             Error::Config(inner) => write!(f, "{}", inner),
+            Error::HaApi(inner) => write!(f, "{}", inner),
             Error::Refresh() => write!(f, "Tried to refresh a long lived access token"),
             Error::NoAuth() => write!(f, "There are no Authentication Credentals"),
         }
@@ -31,6 +33,7 @@ impl std::error::Error for Error {
         match self {
             Error::Request(inner) => Some(inner),
             Error::Config(_) => None,
+            Error::HaApi(_) => None,
             Error::Refresh() => None,
             Error::NoAuth() => None,
         }

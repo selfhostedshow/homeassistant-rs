@@ -1,22 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RefreshToken {
-    pub access_token: String,
-    pub expires_in: u64,
-    pub token_type: String,
+pub struct HaEntityAttribute {
+    pub friendly_name: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HaEntityState {
+    pub attributes: HaEntityAttribute,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AuthorizationCode {
-    pub access_token: String,
-    pub expires_in: u64,
-    pub refresh_token: String,
-    pub token_type: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DeviceRegistrationRequest {
+#[derive(Serialize, Deserialize)]
+pub struct RegisterDeviceRequest {
     pub device_id: String,
     pub app_id: String,
     pub app_name: String,
@@ -27,18 +21,33 @@ pub struct DeviceRegistrationRequest {
     pub os_name: String,
     pub os_version: String,
     pub supports_encryption: bool,
-    pub app_data: AppData,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct AppData {}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DeviceRegistrationResponse {
-    pub cloudhook_url: Option<String>,
+pub struct RegisterDeviceResponse {
+    pub cloud_hook_url: Option<String>,
     pub remote_ui_url: Option<String>,
     pub secret: Option<String>,
     pub webhook_id: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetAccessTokenRequest {
+    pub grant_type: String,
+    pub code: String,
+    pub client_id: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetAccessTokenResponse {
+    pub access_token: String,
+    pub expires_in: u32,
+    pub refresh_token: String,
+    pub token_type: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetAccessTokenError {
+    pub error: String,
+    pub error_description: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -60,16 +69,6 @@ pub struct SensorRegistrationData {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SensorUpdateRequest {
-    pub r#type: String,
-    pub data: SensorUpdateData,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SensorUpdateData {
-    pub icon: String,
-    pub state: String,
-    pub r#type: String,
-    pub unique_id: String,
-    pub attributes: std::collections::HashMap<String, String>,
+pub struct RegisterSensorResponse {
+    pub success: bool
 }

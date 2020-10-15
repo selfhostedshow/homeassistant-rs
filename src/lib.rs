@@ -1,6 +1,7 @@
 //use reqwest::Client;
 use futures::executor;
 use std::time;
+use crate::types::{GetAccessTokenResponse, GetAccessTokenRequest, GetAccessTokenError, HaEntityState, RegisterDeviceResponse, RegisterDeviceRequest, SensorRegistrationRequest, RegisterSensorResponse};
 
 pub mod errors;
 pub mod types;
@@ -38,7 +39,7 @@ pub struct LongLivedToken {
 impl HomeAssistantAPI {
     pub fn new(instance_urls: Vec<String>) -> Self {
         return Self {
-            instance_urls: instance_urls,
+            instance_urls,
             client: reqwest::Client::new(),
             token: None,
             webhook_id: None,
@@ -47,345 +48,120 @@ impl HomeAssistantAPI {
         }
     }
 
-    pub fn auth_token(
-        &mut self,
-        oauth_token: String,
-        refresh_token: String,
-        token_expiration: u64,
-    ) -> Result<(), errors::Error> {
-        let oauth = OAuthToken {
-            token: oauth_token,
-            refresh_token: refresh_token,
-            token_expiration: (time::UNIX_EPOCH + time::Duration::from_secs(token_expiration)),
-        };
-        self.token = Some(Token::Oauth(oauth));
-        return Ok(());
+    pub fn single_instance(instance_url: String) -> Self {
+        return Self {
+            instance_urls: vec![instance_url],
+            token: None,
+            client: reqwest::Client::new(),
+            webhook_id: None,
+            cloudhook_url: None,
+            remote_ui_url: None
+        }
     }
 
-    pub fn auth_authorization_code(
-        &mut self,
-        authorization_code: String,
-    ) -> Result<(), errors::Error> {
-        let client = reqwest::Client::new();
-        let response = client
-            .post(self.instance_urls[0].as_str())
-            .query(&[
-                ("grant_type", "authorization_code"),
-                ("client_id", CLIENT_ID),
-                ("code", authorization_code.as_str()),
-            ])
-            .send();
-        match executor::block_on(response) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(response.json::<types::AuthorizationCode>()) {
-                            Ok(response_data) => {
-                                let token_time = (time::SystemTime::now()
-                                    + time::Duration::from_secs(1800))
-                                .duration_since(time::SystemTime::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs();
-
-                                return self.auth_token(
-                                    response_data.access_token,
-                                    response_data.refresh_token,
-                                    token_time,
-                                );
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
-        };
+    pub fn set_access_token(self, token: String) -> Self {
+        return Self {
+            token: Some(Token::LongLived(LongLivedToken{ token})),
+            ..self
+        }
     }
 
-    pub fn auth_long_lived_token(
-        &mut self,
-        long_lived_token: String,
-    ) -> Result<(), errors::Error> {
-        let token = LongLivedToken {
-            token: long_lived_token,
+    pub fn set_webhook_id(self, webhook_id: String) -> Self {
+        return Self {
+            webhook_id: Some(webhook_id),
+            ..self
+        }
+    }
+
+    pub async fn access_token(&self, code: String) -> Result<GetAccessTokenResponse, errors::Error> {
+        let request = GetAccessTokenRequest {
+            grant_type: "authorization_code".to_string(),
+            code,
+            client_id: "http://localhost:8000".to_string(),
         };
-        self.token = Some(Token::LongLived(token));
-        return Ok(());
+        let resp = self.client
+            .post(format!("http://{}/auth/token", self.instance_urls[0]).as_str())
+            .form(&request)
+            .send()
+            .await?;
+
+        match resp.status().as_str() {
+            "200" => Ok(resp.json::<GetAccessTokenResponse>().await?),
+            _ => {
+                let error = resp.json::<GetAccessTokenError>().await?;
+                Err(errors::Error::HaApi(format!(
+                    "Error getting access token from HA Error: {} Details: {}",
+                    error.error, error.error_description
+                )))
+            }
+        }
+    }
+
+    pub async fn api_states(&self) -> Result<Vec<HaEntityState>, errors::Error> {
+        let endpoint = format!("http://{}/api/states", self.instance_urls[0]);
+        let token = self.get_token()?;
+        let resp = self.client
+            .get(endpoint.as_str())
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await?;
+
+        let api_states = resp.json::<Vec<HaEntityState>>().await?;
+        Ok(api_states)
+    }
+
+    pub async fn register_machine(
+        &self,
+        request: &RegisterDeviceRequest
+    ) -> Result<RegisterDeviceResponse, errors::Error> {
+
+        let endpoint = format!("http://{}/api/mobile_app/registrations", self.instance_urls[0]);
+        let token = self.get_token()?;
+        let resp = self
+            .client
+            .post(endpoint.as_str())
+            .header(
+                "Authorization",
+                format!("Bearer {}", token),
+            )
+            .json(&request)
+            .send()
+            .await?;
+
+        let r: RegisterDeviceResponse = resp.json().await?;
+        Ok(r)
+    }
+
+    pub async fn register_sensor(
+        &self,
+        request: &SensorRegistrationRequest,
+    ) -> Result<RegisterSensorResponse, errors::Error> {
+
+        let webhook_id = self.webhook_id.as_ref().ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
+        let token = self.get_token()?;
+        let endpoint = format!("http://{}/api/webhook/{}", self.instance_urls[0], webhook_id);
+
+        let response = self
+            .client
+            .post(endpoint.as_str())
+            .header(
+                "Authorization",
+                format!("Bearer {}", token),
+            )
+            .json(&request)
+            .send()
+            .await?;
+
+        let resp_json: RegisterSensorResponse =  response.json().await?;
+        Ok(resp_json)
     }
 
     fn get_token(&self) -> Result<String, errors::Error> {
-        let token = self.token.clone();
+        let token = self.token.as_ref().ok_or_else(|| errors::Error::Config("expected a token to exist".to_string()))?;
         match token {
-            Some(token) => {
-                return match token {
-                    Token::Oauth(oauth) => Ok(oauth.refresh_token),
-                    Token::LongLived(long_lived) => Ok(long_lived.token)
-                }
-            },
-            None => return Err(errors::Error::NoAuth()) 
-        }
-        
-    }
-
-    pub fn need_refresh(&self) -> bool {
-        match &self.token {
-            Some(token) => {
-                match token {
-                    Token::Oauth(oauth) => {
-                        match time::SystemTime::now().duration_since(oauth.token_expiration) {
-                            Ok(sec_left) => {
-                                if sec_left <= time::Duration::from_secs(10) {
-                                    return false;
-                                } else {
-                                    return true;
-                                }
-                            }
-                            Err(_) => return false,
-                        };
-                    },
-                    Token::LongLived(_) => {
-                        return false;
-                    }
-                }
-            },
-            None => {
-                return false;
-            }            
+            Token::Oauth(token) => Ok(token.token.clone()),
+            Token::LongLived(token) => Ok(token.token.clone())
         }
     }
 
-    pub fn refresh_token(&mut self) -> Result<(), errors::Error> {
-        let token = self.token.clone(); // This is dump but I have to do it apparently
-        let refresh_token: String;
-        match token {
-            Some(token) => {
-                refresh_token = match token {
-                    Token::Oauth(oauth) => oauth.refresh_token,
-                    Token::LongLived(_) => {
-                        return Err(errors::Error::Refresh());
-                    }
-                };
-            },
-            None => return Err(errors::Error::NoAuth())
-        }
-        
-
-        let response = self
-            .client
-            .post(&self.instance_urls[0])
-            .query(&[
-                ("grant_type", "refresh_token"),
-                ("client_id", CLIENT_ID),
-                ("refresh_token", refresh_token.as_str()),
-            ])
-            .send();
-        match executor::block_on(response) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(response.json::<types::RefreshToken>()) {
-                            Ok(response_data) => {
-                                let oauth = OAuthToken {
-                                    token: response_data.access_token,
-                                    token_expiration: time::SystemTime::now()
-                                        + time::Duration::from_secs(response_data.expires_in),
-                                    refresh_token: refresh_token.to_string(),
-                                };
-                                self.token = Some(Token::Oauth(oauth));
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
-        };
-    }
-
-    pub fn register_device(
-        &mut self,
-        device_data: types::DeviceRegistrationRequest,
-    ) -> Result<(), errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().unwrap()
-        }
-        let url = format!(
-            "{}/api/mobile_app/registrations",
-            self.instance_urls[0].as_str()
-        );
-
-        println!("{:?}", self.get_token());
-
-        let token = match self.get_token() {
-            Ok(token) => {
-                token
-            },
-            Err(err) => return Err(err) 
-        };
-
-        let response = self
-            .client
-            .post(&url)
-            .bearer_auth(token)
-            .json(&device_data);
-
-        match executor::block_on(response.send()) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(
-                            response.json::<types::DeviceRegistrationResponse>(),
-                        ) {
-                            Ok(response_data) => {
-                                self.webhook_id = Some(response_data.webhook_id);
-                                self.cloudhook_url = response_data.cloudhook_url;
-                                self.remote_ui_url = response_data.remote_ui_url;
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
-        }
-    }
-
-    pub fn register_sensor(
-        &mut self,
-        sensor_data: types::SensorRegistrationData,
-    ) -> Result<(), errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().unwrap()
-        }
-        let register_sensor = types::SensorRegistrationRequest {
-            data: sensor_data,
-            r#type: String::from("register_sensor"),
-        };
-        match &self.webhook_id {
-            Some(webhook_id) => {
-                let url = format!(
-                    "{}/api/webhook/{}",
-                    self.instance_urls[0].as_str(),
-                    webhook_id
-                );
-
-                let token = match self.get_token() {
-                    Ok(token) => {
-                        token
-                    },
-                    Err(err) => return Err(err) 
-                };
-
-                let response = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(token)
-                    .json(&register_sensor)
-                    .send();
-                match executor::block_on(response) {
-                    Ok(response) => {
-                        match response.error_for_status() {
-                            Ok(_) => {
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            None => {
-                return Err(errors::Error::Config(String::from("Missing Webhook ID")));
-            }
-        }
-    }
-
-    pub fn update_sensor(
-        &mut self,
-        sensor_data: types::SensorUpdateData,
-    ) -> Result<(), errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().unwrap()
-        }
-        let register_sensor = types::SensorUpdateRequest {
-            data: sensor_data,
-            r#type: String::from("update_sensor_states"),
-        };
-        match &self.webhook_id {
-            Some(webhook_id) => {
-                let url = format!(
-                    "{}/api/webhook/{}",
-                    self.instance_urls[0].as_str(),
-                    webhook_id
-                );
-
-                let token = match self.get_token() {
-                    Ok(token) => {
-                        token
-                    },
-                    Err(err) => return Err(err) 
-                };
-
-                let response = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(token)
-                    .json(&register_sensor)
-                    .send();
-
-                match executor::block_on(response) {
-                    Ok(response) => {
-                        match response.error_for_status() {
-                            Ok(response) => {
-                                match executor::block_on(response.json::<types::RefreshToken>()) {
-                                    Ok(_response_data) => {
-                                        return Ok(());
-                                    }
-                                    Err(err) => {
-                                        return Err(errors::Error::from(err));
-                                    }
-                                };
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            None => {
-                return Err(errors::Error::Config(String::from("Missing Webhook ID")));
-            }
-        }
-    }
 }
