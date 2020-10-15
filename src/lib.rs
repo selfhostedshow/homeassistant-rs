@@ -37,8 +37,8 @@ pub struct LongLivedToken {
 
 impl HomeAssistantAPI {
     pub fn new(instance_urls: Vec<String>) -> Self {
-        return Self {
-            instance_urls: instance_urls,
+        Self {
+            instance_urls,
             client: reqwest::Client::new(),
             token: None,
             webhook_id: None,
@@ -55,11 +55,11 @@ impl HomeAssistantAPI {
     ) -> Result<(), errors::Error> {
         let oauth = OAuthToken {
             token: oauth_token,
-            refresh_token: refresh_token,
+            refresh_token,
             token_expiration: (time::UNIX_EPOCH + time::Duration::from_secs(token_expiration)),
         };
         self.token = Some(Token::Oauth(oauth));
-        return Ok(());
+        Ok(())
     }
 
     pub fn auth_authorization_code(
@@ -76,88 +76,62 @@ impl HomeAssistantAPI {
             ])
             .send();
         match executor::block_on(response) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(response.json::<types::AuthorizationCode>()) {
-                            Ok(response_data) => {
-                                let token_time = (time::SystemTime::now()
-                                    + time::Duration::from_secs(1800))
-                                .duration_since(time::SystemTime::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs();
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => {
+                    match executor::block_on(response.json::<types::AuthorizationCode>()) {
+                        Ok(response_data) => {
+                            let token_time = (time::SystemTime::now()
+                                + time::Duration::from_secs(1800))
+                            .duration_since(time::SystemTime::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
 
-                                return self.auth_token(
-                                    response_data.access_token,
-                                    response_data.refresh_token,
-                                    token_time,
-                                );
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
+                            self.auth_token(
+                                response_data.access_token,
+                                response_data.refresh_token,
+                                token_time,
+                            )
+                        }
+                        Err(err) => Err(errors::Error::from(err)),
                     }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
-        };
+                }
+                Err(err) => Err(errors::Error::from(err)),
+            },
+            Err(err) => Err(errors::Error::from(err)),
+        }
     }
 
-    pub fn auth_long_lived_token(
-        &mut self,
-        long_lived_token: String,
-    ) -> Result<(), errors::Error> {
+    pub fn auth_long_lived_token(&mut self, long_lived_token: String) -> Result<(), errors::Error> {
         let token = LongLivedToken {
             token: long_lived_token,
         };
         self.token = Some(Token::LongLived(token));
-        return Ok(());
+        Ok(())
     }
 
     fn get_token(&self) -> Result<String, errors::Error> {
         let token = self.token.clone();
         match token {
-            Some(token) => {
-                return match token {
-                    Token::Oauth(oauth) => Ok(oauth.refresh_token),
-                    Token::LongLived(long_lived) => Ok(long_lived.token)
-                }
+            Some(token) => match token {
+                Token::Oauth(oauth) => Ok(oauth.refresh_token),
+                Token::LongLived(long_lived) => Ok(long_lived.token),
             },
-            None => return Err(errors::Error::NoAuth()) 
+            None => Err(errors::Error::NoAuth()),
         }
-        
     }
 
     pub fn need_refresh(&self) -> bool {
         match &self.token {
-            Some(token) => {
-                match token {
-                    Token::Oauth(oauth) => {
-                        match time::SystemTime::now().duration_since(oauth.token_expiration) {
-                            Ok(sec_left) => {
-                                if sec_left <= time::Duration::from_secs(10) {
-                                    return false;
-                                } else {
-                                    return true;
-                                }
-                            }
-                            Err(_) => return false,
-                        };
-                    },
-                    Token::LongLived(_) => {
-                        return false;
+            Some(token) => match token {
+                Token::Oauth(oauth) => {
+                    match time::SystemTime::now().duration_since(oauth.token_expiration) {
+                        Ok(sec_left) => sec_left > time::Duration::from_secs(10),
+                        Err(_) => false,
                     }
                 }
+                Token::LongLived(_) => false,
             },
-            None => {
-                return false;
-            }            
+            None => false,
         }
     }
 
@@ -172,10 +146,9 @@ impl HomeAssistantAPI {
                         return Err(errors::Error::Refresh());
                     }
                 };
-            },
-            None => return Err(errors::Error::NoAuth())
+            }
+            None => return Err(errors::Error::NoAuth()),
         }
-        
 
         let response = self
             .client
@@ -187,34 +160,24 @@ impl HomeAssistantAPI {
             ])
             .send();
         match executor::block_on(response) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(response.json::<types::RefreshToken>()) {
-                            Ok(response_data) => {
-                                let oauth = OAuthToken {
-                                    token: response_data.access_token,
-                                    token_expiration: time::SystemTime::now()
-                                        + time::Duration::from_secs(response_data.expires_in),
-                                    refresh_token: refresh_token.to_string(),
-                                };
-                                self.token = Some(Token::Oauth(oauth));
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => match executor::block_on(response.json::<types::RefreshToken>()) {
+                    Ok(response_data) => {
+                        let oauth = OAuthToken {
+                            token: response_data.access_token,
+                            token_expiration: time::SystemTime::now()
+                                + time::Duration::from_secs(response_data.expires_in),
+                            refresh_token,
                         };
+                        self.token = Some(Token::Oauth(oauth));
+                        Ok(())
                     }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
-        };
+                    Err(err) => Err(errors::Error::from(err)),
+                },
+                Err(err) => Err(errors::Error::from(err)),
+            },
+            Err(err) => Err(errors::Error::from(err)),
+        }
     }
 
     pub fn register_device(
@@ -232,44 +195,28 @@ impl HomeAssistantAPI {
         println!("{:?}", self.get_token());
 
         let token = match self.get_token() {
-            Ok(token) => {
-                token
-            },
-            Err(err) => return Err(err) 
+            Ok(token) => token,
+            Err(err) => return Err(err),
         };
 
-        let response = self
-            .client
-            .post(&url)
-            .bearer_auth(token)
-            .json(&device_data);
+        let response = self.client.post(&url).bearer_auth(token).json(&device_data);
 
         match executor::block_on(response.send()) {
-            Ok(response) => {
-                match response.error_for_status() {
-                    Ok(response) => {
-                        match executor::block_on(
-                            response.json::<types::DeviceRegistrationResponse>(),
-                        ) {
-                            Ok(response_data) => {
-                                self.webhook_id = Some(response_data.webhook_id);
-                                self.cloudhook_url = response_data.cloudhook_url;
-                                self.remote_ui_url = response_data.remote_ui_url;
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => {
+                    match executor::block_on(response.json::<types::DeviceRegistrationResponse>()) {
+                        Ok(response_data) => {
+                            self.webhook_id = Some(response_data.webhook_id);
+                            self.cloudhook_url = response_data.cloudhook_url;
+                            self.remote_ui_url = response_data.remote_ui_url;
+                            Ok(())
+                        }
+                        Err(err) => Err(errors::Error::from(err)),
                     }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
-            }
-            Err(err) => {
-                return Err(errors::Error::from(err));
-            }
+                }
+                Err(err) => Err(errors::Error::from(err)),
+            },
+            Err(err) => Err(errors::Error::from(err)),
         }
     }
 
@@ -293,10 +240,8 @@ impl HomeAssistantAPI {
                 );
 
                 let token = match self.get_token() {
-                    Ok(token) => {
-                        token
-                    },
-                    Err(err) => return Err(err) 
+                    Ok(token) => token,
+                    Err(err) => return Err(err),
                 };
 
                 let response = self
@@ -306,24 +251,14 @@ impl HomeAssistantAPI {
                     .json(&register_sensor)
                     .send();
                 match executor::block_on(response) {
-                    Ok(response) => {
-                        match response.error_for_status() {
-                            Ok(_) => {
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
+                    Ok(response) => match response.error_for_status() {
+                        Ok(_) => Ok(()),
+                        Err(err) => Err(errors::Error::from(err)),
+                    },
+                    Err(err) => Err(errors::Error::from(err)),
+                }
             }
-            None => {
-                return Err(errors::Error::Config(String::from("Missing Webhook ID")));
-            }
+            None => Err(errors::Error::Config(String::from("Missing Webhook ID"))),
         }
     }
 
@@ -347,10 +282,8 @@ impl HomeAssistantAPI {
                 );
 
                 let token = match self.get_token() {
-                    Ok(token) => {
-                        token
-                    },
-                    Err(err) => return Err(err) 
+                    Ok(token) => token,
+                    Err(err) => return Err(err),
                 };
 
                 let response = self
@@ -361,31 +294,19 @@ impl HomeAssistantAPI {
                     .send();
 
                 match executor::block_on(response) {
-                    Ok(response) => {
-                        match response.error_for_status() {
-                            Ok(response) => {
-                                match executor::block_on(response.json::<types::RefreshToken>()) {
-                                    Ok(_response_data) => {
-                                        return Ok(());
-                                    }
-                                    Err(err) => {
-                                        return Err(errors::Error::from(err));
-                                    }
-                                };
+                    Ok(response) => match response.error_for_status() {
+                        Ok(response) => {
+                            match executor::block_on(response.json::<types::RefreshToken>()) {
+                                Ok(_response_data) => Ok(()),
+                                Err(err) => Err(errors::Error::from(err)),
                             }
-                            Err(err) => {
-                                return Err(errors::Error::from(err));
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        return Err(errors::Error::from(err));
-                    }
-                };
+                        }
+                        Err(err) => Err(errors::Error::from(err)),
+                    },
+                    Err(err) => Err(errors::Error::from(err)),
+                }
             }
-            None => {
-                return Err(errors::Error::Config(String::from("Missing Webhook ID")));
-            }
+            None => Err(errors::Error::Config(String::from("Missing Webhook ID"))),
         }
     }
 }
