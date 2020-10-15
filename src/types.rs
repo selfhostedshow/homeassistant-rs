@@ -70,5 +70,5 @@ pub struct SensorRegistrationData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterSensorResponse {
-    pub success: bool
+    pub success: bool,
 }

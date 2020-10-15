@@ -9,7 +9,6 @@ pub enum Error {
     NoAuth(),
 }
 
-
 impl From<reqwest::Error> for Error {
     fn from(error: reqwest::Error) -> Self {
         return Error::Request(error);
@@ -37,5 +36,5 @@ impl std::error::Error for Error {
             Error::Refresh() => None,
             Error::NoAuth() => None,
         }
-    } 
+    }
 }

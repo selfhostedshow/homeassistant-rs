@@ -1,7 +1,11 @@
 //use reqwest::Client;
+use crate::types::{
+    GetAccessTokenError, GetAccessTokenRequest, GetAccessTokenResponse, HaEntityState,
+    RegisterDeviceRequest, RegisterDeviceResponse, RegisterSensorResponse,
+    SensorRegistrationRequest,
+};
 use futures::executor;
 use std::time;
-use crate::types::{GetAccessTokenResponse, GetAccessTokenRequest, GetAccessTokenError, HaEntityState, RegisterDeviceResponse, RegisterDeviceRequest, SensorRegistrationRequest, RegisterSensorResponse};
 
 pub mod errors;
 pub mod types;
@@ -45,7 +49,7 @@ impl HomeAssistantAPI {
             webhook_id: None,
             cloudhook_url: None,
             remote_ui_url: None,
-        }
+        };
     }
 
     pub fn single_instance(instance_url: String) -> Self {
@@ -55,31 +59,35 @@ impl HomeAssistantAPI {
             client: reqwest::Client::new(),
             webhook_id: None,
             cloudhook_url: None,
-            remote_ui_url: None
-        }
+            remote_ui_url: None,
+        };
     }
 
     pub fn set_access_token(self, token: String) -> Self {
         return Self {
-            token: Some(Token::LongLived(LongLivedToken{ token})),
+            token: Some(Token::LongLived(LongLivedToken { token })),
             ..self
-        }
+        };
     }
 
     pub fn set_webhook_id(self, webhook_id: String) -> Self {
         return Self {
             webhook_id: Some(webhook_id),
             ..self
-        }
+        };
     }
 
-    pub async fn access_token(&self, code: String) -> Result<GetAccessTokenResponse, errors::Error> {
+    pub async fn access_token(
+        &self,
+        code: String,
+    ) -> Result<GetAccessTokenResponse, errors::Error> {
         let request = GetAccessTokenRequest {
             grant_type: "authorization_code".to_string(),
             code,
             client_id: "http://localhost:8000".to_string(),
         };
-        let resp = self.client
+        let resp = self
+            .client
             .post(format!("http://{}/auth/token", self.instance_urls[0]).as_str())
             .form(&request)
             .send()
@@ -100,7 +108,8 @@ impl HomeAssistantAPI {
     pub async fn api_states(&self) -> Result<Vec<HaEntityState>, errors::Error> {
         let endpoint = format!("http://{}/api/states", self.instance_urls[0]);
         let token = self.get_token()?;
-        let resp = self.client
+        let resp = self
+            .client
             .get(endpoint.as_str())
             .header("Authorization", format!("Bearer {}", token))
             .send()
@@ -112,18 +121,17 @@ impl HomeAssistantAPI {
 
     pub async fn register_machine(
         &self,
-        request: &RegisterDeviceRequest
+        request: &RegisterDeviceRequest,
     ) -> Result<RegisterDeviceResponse, errors::Error> {
-
-        let endpoint = format!("http://{}/api/mobile_app/registrations", self.instance_urls[0]);
+        let endpoint = format!(
+            "http://{}/api/mobile_app/registrations",
+            self.instance_urls[0]
+        );
         let token = self.get_token()?;
         let resp = self
             .client
             .post(endpoint.as_str())
-            .header(
-                "Authorization",
-                format!("Bearer {}", token),
-            )
+            .header("Authorization", format!("Bearer {}", token))
             .json(&request)
             .send()
             .await?;
@@ -136,32 +144,36 @@ impl HomeAssistantAPI {
         &self,
         request: &SensorRegistrationRequest,
     ) -> Result<RegisterSensorResponse, errors::Error> {
-
-        let webhook_id = self.webhook_id.as_ref().ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
+        let webhook_id = self
+            .webhook_id
+            .as_ref()
+            .ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
         let token = self.get_token()?;
-        let endpoint = format!("http://{}/api/webhook/{}", self.instance_urls[0], webhook_id);
+        let endpoint = format!(
+            "http://{}/api/webhook/{}",
+            self.instance_urls[0], webhook_id
+        );
 
         let response = self
             .client
             .post(endpoint.as_str())
-            .header(
-                "Authorization",
-                format!("Bearer {}", token),
-            )
+            .header("Authorization", format!("Bearer {}", token))
             .json(&request)
             .send()
             .await?;
 
-        let resp_json: RegisterSensorResponse =  response.json().await?;
+        let resp_json: RegisterSensorResponse = response.json().await?;
         Ok(resp_json)
     }
 
     fn get_token(&self) -> Result<String, errors::Error> {
-        let token = self.token.as_ref().ok_or_else(|| errors::Error::Config("expected a token to exist".to_string()))?;
+        let token = self
+            .token
+            .as_ref()
+            .ok_or_else(|| errors::Error::Config("expected a token to exist".to_string()))?;
         match token {
             Token::Oauth(token) => Ok(token.token.clone()),
-            Token::LongLived(token) => Ok(token.token.clone())
+            Token::LongLived(token) => Ok(token.token.clone()),
         }
     }
-
 }
