@@ -11,7 +11,7 @@ pub enum Error {
 
 impl From<reqwest::Error> for Error {
     fn from(error: reqwest::Error) -> Self {
-        return Error::Request(error);
+        Error::Request(error)
     }
 }
 
@@ -31,10 +31,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::Request(inner) => Some(inner),
-            Error::Config(_) => None,
-            Error::HaApi(_) => None,
-            Error::Refresh() => None,
-            Error::NoAuth() => None,
+            _ => None,
         }
     }
 }

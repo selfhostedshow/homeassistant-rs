@@ -45,6 +45,13 @@ pub struct GetAccessTokenResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct RefreshAccessTokenResponse {
+    pub access_token: String,
+    pub expires_in: u32,
+    pub token_type: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GetAccessTokenError {
     pub error: String,
     pub error_description: String,
@@ -71,4 +78,19 @@ pub struct SensorRegistrationData {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterSensorResponse {
     pub success: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SensorUpdateRequest {
+    pub r#type: String,
+    pub data: SensorUpdateData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SensorUpdateData {
+    pub icon: String,
+    pub state: String,
+    pub r#type: String,
+    pub unique_id: String,
+    pub attributes: std::collections::HashMap<String, String>,
 }
