@@ -34,10 +34,14 @@ pub struct LongLivedToken {
 }
 
 impl HomeAssistantAPI {
-    pub fn new(instance_url: String, client_id: String) -> Self {
+    pub fn new(
+        instance_url: String,
+        client_id: String,
+        maybe_long_lived_token: Option<String>,
+    ) -> Self {
         Self {
             instance_url,
-            token: None,
+            token: maybe_long_lived_token.map(|token| Token::LongLived(LongLivedToken { token })),
             client: reqwest::Client::new(),
             webhook_id: None,
             cloudhook_url: None,
@@ -79,10 +83,9 @@ impl HomeAssistantAPI {
     }
 
     pub fn need_refresh(&self) -> bool {
-        let token_result = self
-            .token
-            .as_ref()
-            .ok_or_else(|| errors::Error::Config("expected a token to exist".to_string()));
+        let token_result = self.token.as_ref().ok_or_else(|| {
+            errors::Error::Config("Refreshing token - expected a token to exist".to_string())
+        });
 
         match token_result {
             Ok(token) => match token {
@@ -267,10 +270,9 @@ impl HomeAssistantAPI {
     }
 
     fn get_token(&self) -> Result<String, errors::Error> {
-        let token = self
-            .token
-            .as_ref()
-            .ok_or_else(|| errors::Error::Config("expected a token to exist".to_string()))?;
+        let token = self.token.as_ref().ok_or_else(|| {
+            errors::Error::Config("Get Token - expected a token to exist".to_string())
+        })?;
         match token {
             Token::Oauth(token) => Ok(token.token.clone()),
             Token::LongLived(token) => Ok(token.token.clone()),
