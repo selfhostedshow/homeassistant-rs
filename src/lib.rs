@@ -6,7 +6,7 @@ pub mod types;
 
 #[derive(Debug)]
 pub struct HomeAssistantAPI {
-    instance_urls: Vec<String>,
+    instance_url: String,
     token: Option<Token>,
     client: reqwest::Client,
     webhook_id: Option<String>,
@@ -34,21 +34,10 @@ pub struct LongLivedToken {
 }
 
 impl HomeAssistantAPI {
-    pub fn new(instance_urls: Vec<String>, client_id: String) -> Self {
-        Self {
-            instance_urls,
-            client: reqwest::Client::new(),
-            token: None,
-            webhook_id: None,
-            cloudhook_url: None,
-            remote_ui_url: None,
-            client_id,
-        }
-    }
 
-    pub fn single_instance(instance_url: String, client_id: String) -> Self {
+    pub fn new(instance_url: String, client_id: String) -> Self {
         Self {
-            instance_urls: vec![instance_url],
+            instance_url,
             token: None,
             client: reqwest::Client::new(),
             webhook_id: None,
@@ -58,18 +47,28 @@ impl HomeAssistantAPI {
         }
     }
 
-    pub fn set_access_token(self, token: String) -> Self {
-        Self {
-            token: Some(Token::LongLived(LongLivedToken { token })),
-            ..self
-        }
+    pub fn set_oauth_token(&mut self, access_token: String, expires_in: u32, refresh_token: String) {
+        let oauth = OAuthToken {
+            token: access_token,
+            token_expiration: time::SystemTime::now()
+                + time::Duration::from_secs(expires_in as u64),
+            refresh_token,
+        };
+        let oauth_token = Token::Oauth(oauth);
+        self.token = Some(oauth_token);
     }
 
-    pub fn set_webhook_id(self, webhook_id: String) -> Self {
-        Self {
-            webhook_id: Some(webhook_id),
-            ..self
-        }
+    pub fn set_long_lived_token(&mut self, token: String) {
+        let long_lived = Token::LongLived(LongLivedToken {
+            token
+        });
+        self.token = Some(long_lived)
+    }
+
+    pub fn set_webhook_info(&mut self, webhook_id: String, cloudhook_url: Option<String>, remote_ui_url: Option<String>) {
+        self.webhook_id = Some(webhook_id);
+        self.cloudhook_url = cloudhook_url;
+        self.remote_ui_url = remote_ui_url;
     }
 
     pub fn need_refresh(&self) -> bool {
@@ -111,7 +110,7 @@ impl HomeAssistantAPI {
 
         let response = self
             .client
-            .post(format!("http://{}/auth/token", self.instance_urls[0]).as_str())
+            .post(format!("http://{}/auth/token", self.instance_url).as_str())
             .query(&[
                 ("grant_type", "refresh_token"),
                 ("client_id", &self.client_id),
@@ -121,19 +120,12 @@ impl HomeAssistantAPI {
             .await?;
 
         let refresh_token_resp: RefreshAccessTokenResponse = response.json().await?;
-        let oauth = OAuthToken {
-            token: refresh_token_resp.access_token,
-            token_expiration: time::SystemTime::now()
-                + time::Duration::from_secs(refresh_token_resp.expires_in as u64),
-            refresh_token,
-        };
-        let oauth_token = Token::Oauth(oauth);
-        self.token = Some(oauth_token);
+        self.set_oauth_token(refresh_token_resp.access_token, refresh_token_resp.expires_in, refresh_token);
         Ok(())
     }
 
     pub async fn access_token(
-        &self,
+        &mut self,
         code: String,
         client_id: String,
     ) -> Result<GetAccessTokenResponse, errors::Error> {
@@ -144,13 +136,17 @@ impl HomeAssistantAPI {
         };
         let resp = self
             .client
-            .post(format!("http://{}/auth/token", self.instance_urls[0]).as_str())
+            .post(format!("http://{}/auth/token", self.instance_url).as_str())
             .form(&request)
             .send()
             .await?;
 
         match resp.status().as_str() {
-            "200" => Ok(resp.json::<GetAccessTokenResponse>().await?),
+            "200" => {
+                let access_token_resp = resp.json::<GetAccessTokenResponse>().await?;
+                self.set_oauth_token(access_token_resp.access_token.clone(), access_token_resp.expires_in, access_token_resp.refresh_token.clone());
+                Ok(access_token_resp)
+            }
             _ => {
                 let error = resp.json::<GetAccessTokenError>().await?;
                 Err(errors::Error::HaApi(format!(
@@ -162,7 +158,7 @@ impl HomeAssistantAPI {
     }
 
     pub async fn api_states(&self) -> Result<Vec<HaEntityState>, errors::Error> {
-        let endpoint = format!("http://{}/api/states", self.instance_urls[0]);
+        let endpoint = format!("http://{}/api/states", self.instance_url);
         let token = self.get_token()?;
         let resp = self
             .client
@@ -184,7 +180,7 @@ impl HomeAssistantAPI {
         }
         let endpoint = format!(
             "http://{}/api/mobile_app/registrations",
-            self.instance_urls[0]
+            self.instance_url
         );
         let token = self.get_token()?;
         let resp = self
@@ -196,6 +192,7 @@ impl HomeAssistantAPI {
             .await?;
 
         let r: RegisterDeviceResponse = resp.json().await?;
+        self.set_webhook_info(r.webhook_id.clone(), r.cloud_hook_url.clone(), r.remote_ui_url.clone());
         Ok(r)
     }
 
@@ -213,7 +210,7 @@ impl HomeAssistantAPI {
         let token = self.get_token()?;
         let endpoint = format!(
             "http://{}/api/webhook/{}",
-            self.instance_urls[0], webhook_id
+            self.instance_url, webhook_id
         );
 
         let response = self
@@ -240,7 +237,7 @@ impl HomeAssistantAPI {
             .as_ref()
             .ok_or_else(|| errors::Error::Config("missing webhook id".to_string()))?;
 
-        let endpoint = format!("{}/api/webhook/{}", self.instance_urls[0], webhook_id);
+        let endpoint = format!("{}/api/webhook/{}", self.instance_url, webhook_id);
         let token = self.get_token()?;
 
         let request = types::SensorUpdateRequest {
