@@ -34,7 +34,6 @@ pub struct LongLivedToken {
 }
 
 impl HomeAssistantAPI {
-
     pub fn new(instance_url: String, client_id: String) -> Self {
         Self {
             instance_url,
@@ -47,7 +46,12 @@ impl HomeAssistantAPI {
         }
     }
 
-    pub fn set_oauth_token(&mut self, access_token: String, expires_in: u32, refresh_token: String) {
+    pub fn set_oauth_token(
+        &mut self,
+        access_token: String,
+        expires_in: u32,
+        refresh_token: String,
+    ) {
         let oauth = OAuthToken {
             token: access_token,
             token_expiration: time::SystemTime::now()
@@ -59,13 +63,16 @@ impl HomeAssistantAPI {
     }
 
     pub fn set_long_lived_token(&mut self, token: String) {
-        let long_lived = Token::LongLived(LongLivedToken {
-            token
-        });
+        let long_lived = Token::LongLived(LongLivedToken { token });
         self.token = Some(long_lived)
     }
 
-    pub fn set_webhook_info(&mut self, webhook_id: String, cloudhook_url: Option<String>, remote_ui_url: Option<String>) {
+    pub fn set_webhook_info(
+        &mut self,
+        webhook_id: String,
+        cloudhook_url: Option<String>,
+        remote_ui_url: Option<String>,
+    ) {
         self.webhook_id = Some(webhook_id);
         self.cloudhook_url = cloudhook_url;
         self.remote_ui_url = remote_ui_url;
@@ -81,9 +88,7 @@ impl HomeAssistantAPI {
             Ok(token) => match token {
                 Token::Oauth(token) => {
                     match time::SystemTime::now().duration_since(token.token_expiration) {
-                        Ok(sec_left) => {
-                            sec_left > time::Duration::from_secs(10)
-                        }
+                        Ok(sec_left) => sec_left > time::Duration::from_secs(10),
                         Err(_) => false,
                     }
                 }
@@ -120,7 +125,11 @@ impl HomeAssistantAPI {
             .await?;
 
         let refresh_token_resp: RefreshAccessTokenResponse = response.json().await?;
-        self.set_oauth_token(refresh_token_resp.access_token, refresh_token_resp.expires_in, refresh_token);
+        self.set_oauth_token(
+            refresh_token_resp.access_token,
+            refresh_token_resp.expires_in,
+            refresh_token,
+        );
         Ok(())
     }
 
@@ -144,7 +153,11 @@ impl HomeAssistantAPI {
         match resp.status().as_str() {
             "200" => {
                 let access_token_resp = resp.json::<GetAccessTokenResponse>().await?;
-                self.set_oauth_token(access_token_resp.access_token.clone(), access_token_resp.expires_in, access_token_resp.refresh_token.clone());
+                self.set_oauth_token(
+                    access_token_resp.access_token.clone(),
+                    access_token_resp.expires_in,
+                    access_token_resp.refresh_token.clone(),
+                );
                 Ok(access_token_resp)
             }
             _ => {
@@ -178,10 +191,7 @@ impl HomeAssistantAPI {
         if self.need_refresh() {
             self.refresh_token().await?;
         }
-        let endpoint = format!(
-            "http://{}/api/mobile_app/registrations",
-            self.instance_url
-        );
+        let endpoint = format!("http://{}/api/mobile_app/registrations", self.instance_url);
         let token = self.get_token()?;
         let resp = self
             .client
@@ -192,7 +202,11 @@ impl HomeAssistantAPI {
             .await?;
 
         let r: RegisterDeviceResponse = resp.json().await?;
-        self.set_webhook_info(r.webhook_id.clone(), r.cloud_hook_url.clone(), r.remote_ui_url.clone());
+        self.set_webhook_info(
+            r.webhook_id.clone(),
+            r.cloud_hook_url.clone(),
+            r.remote_ui_url.clone(),
+        );
         Ok(r)
     }
 
@@ -208,10 +222,7 @@ impl HomeAssistantAPI {
             .as_ref()
             .ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
         let token = self.get_token()?;
-        let endpoint = format!(
-            "http://{}/api/webhook/{}",
-            self.instance_url, webhook_id
-        );
+        let endpoint = format!("http://{}/api/webhook/{}", self.instance_url, webhook_id);
 
         let response = self
             .client
