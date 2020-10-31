@@ -6,7 +6,7 @@ authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
 edition = "2018"
 readme = "readme.md"
 homepage = "https://api.halcyon.casa"
-repository = "https://github.com/selfhostedshow/ha_api"
+repository = "https://github.com/selfhostedshow/homeassistant-rs"
 license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
