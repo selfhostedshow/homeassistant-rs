@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct HaEntityAttribute {
     pub friendly_name: Option<String>,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HaEntityState {
     pub attributes: HaEntityAttribute,
@@ -30,6 +31,7 @@ pub struct RegisterDeviceResponse {
     pub secret: Option<String>,
     pub webhook_id: String,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetAccessTokenRequest {
     pub grant_type: String,
@@ -93,4 +95,71 @@ pub struct SensorUpdateData {
     pub r#type: String,
     pub unique_id: String,
     pub attributes: std::collections::HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Configuration { 
+    pub components: Vec<String>,
+    pub config_dir: String,
+    pub elevation: f64,
+    pub latitude: f64,
+    pub location_name: String,
+    pub longitude: f64,
+    pub time_zone: String,
+    pub unit_system: UnitSystem,
+    pub version: String,
+    pub whitelist_external_dirs: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UnitSystem {
+    pub length: String,
+    pub mass: String,
+    pub temperature: String,
+    pub volume: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DiscoveryInfo {
+    pub base_url: String,
+    pub location_name: String,
+    pub requires_api_password: bool,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EventObject {
+    pub event: String,
+    pub listener_count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ServiceObject {
+    pub domain: String,
+    pub services: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StateObject {
+    pub attributes: std::collections::HashMap<String, String>,
+    pub entity_id: String,
+    pub last_changed: String,
+    pub last_updated: Option<String>,
+    pub state: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LogbookEntry {
+    pub context_user_id: String,
+    pub domain: String,
+    pub entity_id: String,
+    pub message: String,
+    pub name: String,
+    pub when: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CheckConfig {
+    pub errors: String,
+    pub result: String
 }

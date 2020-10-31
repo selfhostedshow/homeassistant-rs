@@ -1,24 +1,50 @@
 use crate::types::*;
 use std::time;
+use std::sync::{Arc, RwLock, Weak};
+use std::convert::TryFrom;
 
 pub mod errors;
 pub mod types;
+pub mod rest;
+pub mod native_app;
 
 #[derive(Debug)]
 pub struct HomeAssistantAPI {
     instance_url: String,
-    token: Option<Token>,
-    client: reqwest::Client,
-    webhook_id: Option<String>,
-    cloudhook_url: Option<String>,
-    remote_ui_url: Option<String>,
+    token: Token,
     client_id: String,
+    self_reference: Weak<RwLock<Self>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Token {
     Oauth(OAuthToken),
     LongLived(LongLivedToken),
+    None,
+}
+
+impl Token {
+    pub fn as_string(&self) -> Result<String, errors::Error>{
+        match self {
+            Token::Oauth(token) => Ok(token.token.clone()),
+            Token::LongLived(token) => Ok(token.token.clone()),
+            Token::None => Err(errors::Error::NoAuth()),
+        }
+    }
+
+    pub fn need_refresh(&self) -> bool {
+        match self {
+            Token::Oauth(token) => {
+                match time::SystemTime::now().duration_since(token.token_expiration) {
+                    Ok(sec_left) => sec_left > time::Duration::from_secs(10),
+                    Err(_) => false,
+                }
+            },
+            Token::LongLived(_) => false,
+            Token::None => false,
+
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -37,17 +63,17 @@ impl HomeAssistantAPI {
     pub fn new(
         instance_url: String,
         client_id: String,
-        maybe_long_lived_token: Option<String>,
-    ) -> Self {
-        Self {
+    ) -> Arc<RwLock<Self>> {
+        let token = Token::None;
+        let ret = Arc::new(RwLock::new(Self {
             instance_url,
-            token: maybe_long_lived_token.map(|token| Token::LongLived(LongLivedToken { token })),
-            client: reqwest::Client::new(),
-            webhook_id: None,
-            cloudhook_url: None,
-            remote_ui_url: None,
+            token: token,
             client_id,
-        }
+            self_reference: Weak::new(),
+        }));
+        
+        ret.write().unwrap().self_reference = Arc::downgrade(&ret);
+        return ret;
     }
 
     pub fn set_oauth_token(
@@ -62,62 +88,17 @@ impl HomeAssistantAPI {
                 + time::Duration::from_secs(expires_in as u64),
             refresh_token,
         };
-        let oauth_token = Token::Oauth(oauth);
-        self.token = Some(oauth_token);
+        self.token = Token::Oauth(oauth);
     }
 
     pub fn set_long_lived_token(&mut self, token: String) {
-        let long_lived = Token::LongLived(LongLivedToken { token });
-        self.token = Some(long_lived)
+        self.token = Token::LongLived(LongLivedToken { token });
     }
 
-    pub fn set_webhook_info(
-        &mut self,
-        webhook_id: String,
-        cloudhook_url: Option<String>,
-        remote_ui_url: Option<String>,
-    ) {
-        self.webhook_id = Some(webhook_id);
-        self.cloudhook_url = cloudhook_url;
-        self.remote_ui_url = remote_ui_url;
-    }
+    pub async fn refresh_oauth_token(&mut self) -> Result<(), errors::Error> {
+        let refresh_token = String::from("test");
 
-    pub fn need_refresh(&self) -> bool {
-        let token_result = self.token.as_ref().ok_or_else(|| {
-            errors::Error::Config("Refreshing token - expected a token to exist".to_string())
-        });
-
-        match token_result {
-            Ok(token) => match token {
-                Token::Oauth(token) => {
-                    match time::SystemTime::now().duration_since(token.token_expiration) {
-                        Ok(sec_left) => sec_left > time::Duration::from_secs(10),
-                        Err(_) => false,
-                    }
-                }
-                Token::LongLived(_) => false,
-            },
-            Err(_) => false,
-        }
-    }
-
-    pub async fn refresh_token(&mut self) -> Result<(), errors::Error> {
-        let token = self.token.clone(); // This is dump but I have to do it apparently
-        let refresh_token: String;
-        match token {
-            Some(token) => {
-                refresh_token = match token {
-                    Token::Oauth(oauth) => oauth.refresh_token,
-                    Token::LongLived(_) => {
-                        return Err(errors::Error::Refresh());
-                    }
-                };
-            }
-            None => return Err(errors::Error::NoAuth()),
-        }
-
-        let response = self
-            .client
+        let response = reqwest::Client::new()
             .post(format!("http://{}/auth/token", self.instance_url).as_str())
             .query(&[
                 ("grant_type", "refresh_token"),
@@ -146,8 +127,7 @@ impl HomeAssistantAPI {
             code,
             client_id,
         };
-        let resp = self
-            .client
+        let resp = reqwest::Client::new()
             .post(format!("http://{}/auth/token", self.instance_url).as_str())
             .form(&request)
             .send()
@@ -173,109 +153,24 @@ impl HomeAssistantAPI {
         }
     }
 
-    pub async fn api_states(&self) -> Result<Vec<HaEntityState>, errors::Error> {
-        let endpoint = format!("http://{}/api/states", self.instance_url);
-        let token = self.get_token()?;
-        let resp = self
-            .client
-            .get(endpoint.as_str())
-            .header("Authorization", format!("Bearer {}", token))
-            .send()
-            .await?;
-
-        let api_states = resp.json::<Vec<HaEntityState>>().await?;
-        Ok(api_states)
-    }
-
-    pub async fn register_machine(
-        &mut self,
-        request: &RegisterDeviceRequest,
-    ) -> Result<RegisterDeviceResponse, errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().await?;
-        }
-        let endpoint = format!("http://{}/api/mobile_app/registrations", self.instance_url);
-        let token = self.get_token()?;
-        let resp = self
-            .client
-            .post(endpoint.as_str())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&request)
-            .send()
-            .await?;
-
-        let r: RegisterDeviceResponse = resp.json().await?;
-        self.set_webhook_info(
-            r.webhook_id.clone(),
-            r.cloud_hook_url.clone(),
-            r.remote_ui_url.clone(),
-        );
-        Ok(r)
-    }
-
-    pub async fn register_sensor(
-        &mut self,
-        request: &SensorRegistrationRequest,
-    ) -> Result<RegisterSensorResponse, errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().await?;
-        }
-        let webhook_id = self
-            .webhook_id
-            .as_ref()
-            .ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
-        let token = self.get_token()?;
-        let endpoint = format!("http://{}/api/webhook/{}", self.instance_url, webhook_id);
-
-        let response = self
-            .client
-            .post(endpoint.as_str())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&request)
-            .send()
-            .await?;
-
-        let resp_json: RegisterSensorResponse = response.json().await?;
-        Ok(resp_json)
-    }
-
-    pub async fn update_sensor(
-        &mut self,
-        sensor_data: SensorUpdateData,
-    ) -> Result<(), errors::Error> {
-        if self.need_refresh() {
-            self.refresh_token().await?;
-        }
-        let webhook_id = self
-            .webhook_id
-            .as_ref()
-            .ok_or_else(|| errors::Error::Config("missing webhook id".to_string()))?;
-
-        let endpoint = format!("{}/api/webhook/{}", self.instance_url, webhook_id);
-        let token = self.get_token()?;
-
-        let request = types::SensorUpdateRequest {
-            data: sensor_data,
-            r#type: String::from("update_sensor_states"),
-        };
-
-        self.client
-            .post(endpoint.as_str())
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&request)
-            .send()
-            .await?;
-
-        Ok(())
-    }
-
-    fn get_token(&self) -> Result<String, errors::Error> {
-        let token = self.token.as_ref().ok_or_else(|| {
-            errors::Error::Config("Get Token - expected a token to exist".to_string())
-        })?;
-        match token {
-            Token::Oauth(token) => Ok(token.token.clone()),
-            Token::LongLived(token) => Ok(token.token.clone()),
+    pub async fn get_rest_client(&self) -> rest::Rest {
+        match rest::Rest::try_from(self.self_reference.clone()) {
+            Ok(rest) => rest,
+            Err(_) => unreachable!()
         }
     }
+
+    pub async fn get_native_client_from_config(&self, config: native_app::NativeAppConfig) -> native_app::NativeApp {
+        match native_app::NativeApp::from_config(config, self.self_reference.clone()) {
+            Ok(native_app) => native_app,
+            Err(_) => unreachable!()
+        }
+    }
+
+    pub async fn get_native_client(&self) -> native_app::NativeApp {
+        match native_app::NativeApp::new(self.self_reference.clone()) {
+            Ok(native_app) => native_app,
+            Err(_) => unreachable!()
+        }
+    }   
 }
