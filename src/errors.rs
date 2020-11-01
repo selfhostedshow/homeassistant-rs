@@ -7,7 +7,11 @@ pub enum Error {
     Config(String),
     Refresh(),
     NoAuth(),
-    PoisonError(std::sync::PoisonError<std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>>)
+    PoisonError(
+        std::sync::PoisonError<
+            std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>,
+        >,
+    ),
 }
 
 impl From<reqwest::Error> for Error {
@@ -16,8 +20,18 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-impl From<std::sync::PoisonError<std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>>> for Error {
-    fn from(error: std::sync::PoisonError<std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>>) -> Self {
+impl
+    From<
+        std::sync::PoisonError<
+            std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>,
+        >,
+    > for Error
+{
+    fn from(
+        error: std::sync::PoisonError<
+            std::sync::RwLockReadGuard<'static, std::option::Option<crate::Token>>,
+        >,
+    ) -> Self {
         Error::PoisonError(error)
     }
 }
@@ -43,5 +57,3 @@ impl std::error::Error for Error {
         }
     }
 }
-
-

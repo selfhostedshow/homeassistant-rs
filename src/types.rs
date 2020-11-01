@@ -98,7 +98,7 @@ pub struct SensorUpdateData {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Configuration { 
+pub struct Configuration {
     pub components: Vec<String>,
     pub config_dir: String,
     pub elevation: f64,
@@ -116,7 +116,7 @@ pub struct UnitSystem {
     pub length: String,
     pub mass: String,
     pub temperature: String,
-    pub volume: String
+    pub volume: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -161,5 +161,5 @@ pub struct LogbookEntry {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CheckConfig {
     pub errors: String,
-    pub result: String
+    pub result: String,
 }

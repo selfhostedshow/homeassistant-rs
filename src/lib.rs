@@ -1,12 +1,12 @@
 use crate::types::*;
-use std::time;
-use std::sync::{Arc, RwLock, Weak};
 use std::convert::TryFrom;
+use std::sync::{Arc, RwLock, Weak};
+use std::time;
 
 pub mod errors;
-pub mod types;
-pub mod rest;
 pub mod native_app;
+pub mod rest;
+pub mod types;
 
 #[derive(Debug)]
 pub struct HomeAssistantAPI {
@@ -24,7 +24,7 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn as_string(&self) -> Result<String, errors::Error>{
+    pub fn as_string(&self) -> Result<String, errors::Error> {
         match self {
             Token::Oauth(token) => Ok(token.token.clone()),
             Token::LongLived(token) => Ok(token.token.clone()),
@@ -39,10 +39,9 @@ impl Token {
                     Ok(sec_left) => sec_left > time::Duration::from_secs(10),
                     Err(_) => false,
                 }
-            },
+            }
             Token::LongLived(_) => false,
             Token::None => false,
-
         }
     }
 }
@@ -60,10 +59,7 @@ pub struct LongLivedToken {
 }
 
 impl HomeAssistantAPI {
-    pub fn new(
-        instance_url: String,
-        client_id: String,
-    ) -> Arc<RwLock<Self>> {
+    pub fn new(instance_url: String, client_id: String) -> Arc<RwLock<Self>> {
         let token = Token::None;
         let ret = Arc::new(RwLock::new(Self {
             instance_url,
@@ -71,7 +67,7 @@ impl HomeAssistantAPI {
             client_id,
             self_reference: Weak::new(),
         }));
-        
+
         ret.write().unwrap().self_reference = Arc::downgrade(&ret);
         return ret;
     }
@@ -156,21 +152,24 @@ impl HomeAssistantAPI {
     pub async fn get_rest_client(&self) -> rest::Rest {
         match rest::Rest::try_from(self.self_reference.clone()) {
             Ok(rest) => rest,
-            Err(_) => unreachable!()
+            Err(_) => unreachable!(),
         }
     }
 
-    pub async fn get_native_client_from_config(&self, config: native_app::NativeAppConfig) -> native_app::NativeApp {
+    pub async fn get_native_client_from_config(
+        &self,
+        config: native_app::NativeAppConfig,
+    ) -> native_app::NativeApp {
         match native_app::NativeApp::from_config(config, self.self_reference.clone()) {
             Ok(native_app) => native_app,
-            Err(_) => unreachable!()
+            Err(_) => unreachable!(),
         }
     }
 
     pub async fn get_native_client(&self) -> native_app::NativeApp {
         match native_app::NativeApp::new(self.self_reference.clone()) {
             Ok(native_app) => native_app,
-            Err(_) => unreachable!()
+            Err(_) => unreachable!(),
         }
-    }   
+    }
 }

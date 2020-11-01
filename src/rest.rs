@@ -192,10 +192,7 @@ impl Rest {
         match end_time {
             Some(end_time) => {
                 let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                request = request.query(&[(
-                    "end_time",
-                    formatted_timestamp,
-                )]);
+                request = request.query(&[("end_time", formatted_timestamp)]);
             }
             None => {}
         };

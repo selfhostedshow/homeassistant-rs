@@ -1,6 +1,6 @@
 [package]
-name = "homeassistent"
-description = "This is a library for connecting to the Home Assistent API"
+name = "homeassistant"
+description = "This is a library for connecting to the Home Assistant API"
 version = "0.2.0"
 authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
 edition = "2018"
