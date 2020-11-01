@@ -95,7 +95,7 @@ impl HomeAssistantAPI {
         let refresh_token = String::from("test");
 
         let response = reqwest::Client::new()
-            .post(format!("http://{}/auth/token", self.instance_url).as_str())
+            .post(format!("{}/auth/token", self.instance_url).as_str())
             .query(&[
                 ("grant_type", "refresh_token"),
                 ("client_id", &self.client_id),
@@ -124,7 +124,7 @@ impl HomeAssistantAPI {
             client_id,
         };
         let resp = reqwest::Client::new()
-            .post(format!("http://{}/auth/token", self.instance_url).as_str())
+            .post(format!("{}/auth/token", self.instance_url).as_str())
             .form(&request)
             .send()
             .await?;
