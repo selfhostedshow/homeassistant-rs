@@ -63,13 +63,14 @@ impl HomeAssistantAPI {
         let token = Token::None;
         let ret = Arc::new(RwLock::new(Self {
             instance_url,
-            token: token,
+            token,
             client_id,
             self_reference: Weak::new(),
         }));
 
         ret.write().unwrap().self_reference = Arc::downgrade(&ret);
-        return ret;
+        
+        ret
     }
 
     pub fn set_oauth_token(

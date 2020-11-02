@@ -38,7 +38,7 @@ impl Rest {
 
         let resp_json: Response = response.json().await?;
 
-        return Ok(resp_json.message);
+        Ok(resp_json.message)
 
         //Err(errors::Error::HaApi(String::from("Not Implemented")))
     }
@@ -66,7 +66,7 @@ impl Rest {
 
         let resp_json: types::Configuration = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn discovery_info(self) -> Result<types::DiscoveryInfo, errors::Error> {
@@ -92,7 +92,7 @@ impl Rest {
 
         let resp_json: types::DiscoveryInfo = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn events(self) -> Result<Vec<types::EventObject>, errors::Error> {
@@ -118,7 +118,7 @@ impl Rest {
 
         let resp_json: Vec<types::EventObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn services(self) -> Result<Vec<types::ServiceObject>, errors::Error> {
@@ -144,7 +144,7 @@ impl Rest {
 
         let resp_json: Vec<types::ServiceObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn history_period(
@@ -164,13 +164,11 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/history/period", read_lock.instance_url);
 
-        match timestamp {
-            Some(timestamp) => {
-                let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                endpoint = endpoint + &formatted_timestamp;
-            }
-            None => {}
-        };
+
+        if let Some(timestamp) = timestamp {
+            let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            endpoint = endpoint + &formatted_timestamp;
+        }
 
         let mut request = reqwest::Client::new()
             .get(endpoint.as_str())
@@ -182,33 +180,26 @@ impl Rest {
 
         drop(read_lock);
 
-        match filter_entity_id {
-            Some(filter_entity_id) => {
-                request = request.query(&[("filter_entity_id", filter_entity_id)]);
-            }
-            None => {}
-        };
 
-        match end_time {
-            Some(end_time) => {
-                let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                request = request.query(&[("end_time", formatted_timestamp)]);
-            }
-            None => {}
-        };
+        if let Some(filter_entity_id) = filter_entity_id {
+            request = request.query(&[("filter_entity_id", filter_entity_id)]);
+        }
 
-        match significant_changes_only {
-            Some(_) => {
-                request = request.query(&[("significant_changes_only")]);
-            }
-            None => {}
-        };
+
+        if let Some(end_time) = end_time {
+            let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            request = request.query(&[("end_time", formatted_timestamp)]);
+        }
+
+        if significant_changes_only.is_some() {
+            request = request.query(&[("significant_changes_only")]);
+        }
 
         let response = request.send().await?;
 
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn history_period_minimal(
@@ -228,13 +219,11 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/history/period", read_lock.instance_url);
 
-        match timestamp {
-            Some(timestamp) => {
-                let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                endpoint = endpoint + &formatted_timestamp.to_string();
-            }
-            None => {}
-        };
+        
+        if let Some(timestamp) = timestamp {
+            let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            endpoint = endpoint + &formatted_timestamp;
+        }
 
         let mut request = reqwest::Client::new()
             .get(endpoint.as_str())
@@ -246,27 +235,21 @@ impl Rest {
 
         drop(read_lock);
 
-        match filter_entity_id {
-            Some(filter_entity_id) => {
-                request = request.query(&[("filter_entity_id", filter_entity_id)]);
-            }
-            None => {}
-        };
 
-        match end_time {
-            Some(end_time) => {
-                let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                request = request.query(&[("end_time", formatted_timestamp)]);
-            }
-            None => {}
-        };
+        if let Some(filter_entity_id) = filter_entity_id {
+            request = request.query(&[("filter_entity_id", filter_entity_id)]);
+        }
 
-        match significant_changes_only {
-            Some(_) => {
-                request = request.query(&[("significant_changes_only")]);
-            }
-            None => {}
-        };
+
+        if let Some(end_time) = end_time {
+            let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            request = request.query(&[("end_time", formatted_timestamp)]);
+        }
+
+
+        if significant_changes_only.is_some() {
+            request = request.query(&[("significant_changes_only")]);
+        }
 
         request = request.query(&[("minimal_response")]);
 
@@ -274,7 +257,7 @@ impl Rest {
 
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn logbook(
@@ -293,13 +276,12 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/logbook", read_lock.instance_url);
 
-        match timestamp {
-            Some(timestamp) => {
-                let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                endpoint = endpoint + &formatted_timestamp.to_string();
-            }
-            None => {}
-        };
+
+        if let Some(timestamp) = timestamp {
+            let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            endpoint = endpoint + &formatted_timestamp;
+        }
+
         let mut request = reqwest::Client::new()
             .get(endpoint.as_str())
             .header(
@@ -312,18 +294,17 @@ impl Rest {
 
         request = request.query(&[("entity", entity)]);
 
-        match end_time {
-            Some(end_time) => {
-                let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
-                request = request.query(&[("end_time", formatted_timestamp)]);
-            }
-            None => {}
-        };
+
+        if let Some(end_time) = end_time {
+            let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+            request = request.query(&[("end_time", formatted_timestamp)]);
+        }
+
         let response = request.send().await?;
 
         let resp_json: Vec<types::LogbookEntry> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn states(self) -> Result<Vec<types::StateObject>, errors::Error> {
@@ -349,7 +330,7 @@ impl Rest {
 
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn state_of(
@@ -377,7 +358,7 @@ impl Rest {
         let response = request.send().await?;
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn error_log(self) -> Result<String, errors::Error> {
@@ -403,7 +384,7 @@ impl Rest {
 
         let resp: String = response.text().await?;
 
-        return Ok(resp);
+        Ok(resp)
     }
 
     pub async fn camera_proxy(self, camera_entity_id: String) -> Result<(), errors::Error> {
@@ -430,7 +411,7 @@ impl Rest {
         drop(read_lock);
         let _response = request.send().await?;
 
-        return Ok(());
+        Ok(())
     }
 
     pub async fn state_change(
@@ -457,18 +438,15 @@ impl Rest {
 
         drop(read_lock);
 
-        match state_data {
-            Some(data) => {
-                request = request.json(&data);
-            }
-            None => {}
+        if let Some(data) = state_data {
+            request = request.json(&data);
         }
 
         let response = request.send().await?;
 
         let resp_json: types::StateObject = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn event_fire(
@@ -495,11 +473,8 @@ impl Rest {
 
         drop(read_lock);
 
-        match event_data {
-            Some(data) => {
-                request = request.json(&data);
-            }
-            None => {}
+        if let Some(data) = event_data{
+            request = request.json(&data);
         }
 
         let response = request.send().await?;
@@ -511,7 +486,7 @@ impl Rest {
 
         let resp_json: Response = response.json().await?;
 
-        return Ok(resp_json.message);
+        Ok(resp_json.message)
     }
 
     pub async fn service_call<T>(
@@ -542,18 +517,15 @@ impl Rest {
 
         drop(read_lock);
 
-        match service_data {
-            Some(data) => {
-                request = request.json(&data);
-            }
-            None => {}
+        if let Some(data) = service_data {
+            request = request.json(&data);
         }
 
         let response = request.send().await?;
 
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 
     pub async fn template_render(self, template: String) -> Result<String, errors::Error> {
@@ -572,7 +544,7 @@ impl Rest {
             template: String,
         }
 
-        let template_struct = Template { template: template };
+        let template_struct = Template { template };
         let request = reqwest::Client::new()
             .post(endpoint.as_str())
             .header(
@@ -587,7 +559,7 @@ impl Rest {
 
         let resp: String = response.text().await?;
 
-        return Ok(resp);
+        Ok(resp)
     }
 
     pub async fn check_config(self) -> Result<types::CheckConfig, errors::Error> {
@@ -614,7 +586,7 @@ impl Rest {
 
         let resp_json: types::CheckConfig = response.json().await?;
 
-        return Ok(resp_json);
+        Ok(resp_json)
     }
 }
 
