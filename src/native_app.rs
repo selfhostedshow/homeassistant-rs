@@ -76,10 +76,7 @@ impl NativeApp {
             write_lock.refresh_oauth_token().await?;
             read_lock = self.ha_client.read().unwrap();
         }
-        let endpoint = format!(
-            "{}/api/mobile_app/registrations",
-            read_lock.instance_url
-        );
+        let endpoint = format!("{}/api/mobile_app/registrations", read_lock.instance_url);
         let resp = reqwest::Client::new()
             .post(endpoint.as_str())
             .header(
@@ -114,10 +111,7 @@ impl NativeApp {
             .webhook_id
             .as_ref()
             .ok_or_else(|| errors::Error::Config("expected webhook_id to exist".to_string()))?;
-        let endpoint = format!(
-            "{}/api/webhook/{}",
-            read_lock.instance_url, webhook_id
-        );
+        let endpoint = format!("{}/api/webhook/{}", read_lock.instance_url, webhook_id);
 
         let response = reqwest::Client::new()
             .post(endpoint.as_str())
