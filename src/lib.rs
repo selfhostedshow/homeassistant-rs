@@ -69,7 +69,7 @@ impl HomeAssistantAPI {
         }));
 
         ret.write().unwrap().self_reference = Arc::downgrade(&ret);
-        
+
         ret
     }
 

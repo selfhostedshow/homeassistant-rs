@@ -164,7 +164,6 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/history/period", read_lock.instance_url);
 
-
         if let Some(timestamp) = timestamp {
             let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             endpoint = endpoint + &formatted_timestamp;
@@ -180,11 +179,9 @@ impl Rest {
 
         drop(read_lock);
 
-
         if let Some(filter_entity_id) = filter_entity_id {
             request = request.query(&[("filter_entity_id", filter_entity_id)]);
         }
-
 
         if let Some(end_time) = end_time {
             let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
@@ -219,7 +216,6 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/history/period", read_lock.instance_url);
 
-        
         if let Some(timestamp) = timestamp {
             let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             endpoint = endpoint + &formatted_timestamp;
@@ -235,17 +231,14 @@ impl Rest {
 
         drop(read_lock);
 
-
         if let Some(filter_entity_id) = filter_entity_id {
             request = request.query(&[("filter_entity_id", filter_entity_id)]);
         }
-
 
         if let Some(end_time) = end_time {
             let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             request = request.query(&[("end_time", formatted_timestamp)]);
         }
-
 
         if significant_changes_only.is_some() {
             request = request.query(&[("significant_changes_only")]);
@@ -276,7 +269,6 @@ impl Rest {
 
         let mut endpoint = format!("{}/api/logbook", read_lock.instance_url);
 
-
         if let Some(timestamp) = timestamp {
             let formatted_timestamp = timestamp.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             endpoint = endpoint + &formatted_timestamp;
@@ -293,7 +285,6 @@ impl Rest {
         drop(read_lock);
 
         request = request.query(&[("entity", entity)]);
-
 
         if let Some(end_time) = end_time {
             let formatted_timestamp = end_time.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
@@ -473,7 +464,7 @@ impl Rest {
 
         drop(read_lock);
 
-        if let Some(data) = event_data{
+        if let Some(data) = event_data {
             request = request.json(&data);
         }
 
