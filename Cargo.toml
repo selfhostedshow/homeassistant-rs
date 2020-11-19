@@ -1,6 +1,6 @@
 [package]
 name = "homeassistant"
-description = "This is a library for connecting to the Home Assistent API"
+description = "This is a library for connecting to the Home Assistant API"
 version = "0.2.0"
 authors = ["Bradley Nelson <bradleynelson102@gmail.com>"]
 edition = "2018"
@@ -15,3 +15,4 @@ license = "Apache-2.0"
 futures = "0.3"
 reqwest = { version = "0.10", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
+chrono = "0.4"
