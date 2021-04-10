@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-
+use serde_json::Value;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HaEntityAttribute {
     pub friendly_name: Option<String>,
@@ -141,10 +141,9 @@ pub struct ServiceObject {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StateObject {
-    pub attributes: std::collections::HashMap<String, String>,
+    pub attributes: std::collections::HashMap<String, Value>,
     pub entity_id: String,
     pub last_changed: String,
-    pub last_updated: Option<String>,
     pub state: String,
 }
 

@@ -61,8 +61,9 @@ pub struct LongLivedToken {
 impl HomeAssistantAPI {
     pub fn new(instance_url: String, client_id: String) -> Arc<RwLock<Self>> {
         let token = Token::None;
+        let http_instance_url = format!("http://{}", instance_url);
         let ret = Arc::new(RwLock::new(Self {
-            instance_url,
+            instance_url: http_instance_url,
             token,
             client_id,
             self_reference: Weak::new(),
