@@ -141,7 +141,7 @@ pub struct ServiceObject {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StateObject {
-    pub attributes: Value,
+    pub attributes: std::collections::HashMap<String, Value>,
     pub entity_id: String,
     pub last_changed: String,
     pub state: String,
