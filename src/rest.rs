@@ -318,7 +318,6 @@ impl Rest {
 
         drop(read_lock);
         let response = request.send().await?;
-
         let resp_json: Vec<types::StateObject> = response.json().await?;
 
         Ok(resp_json)
